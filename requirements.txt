@@ -1,0 +1,15 @@
+# 后端依赖
+Flask==3.0.0
+Flask-CORS==4.0.0
+Flask-Login==0.6.3
+Flask-SQLAlchemy==3.1.1
+SQLAlchemy==2.0.23
+PyMySQL==1.1.0
+cryptography==41.0.7
+APScheduler==3.10.4
+python-dotenv==1.0.0
+pytz==2024.1
+
+# 前端构建依赖（仅用于构建）
+# nodejs >= 16.0.0
+# npm >= 8.0.0

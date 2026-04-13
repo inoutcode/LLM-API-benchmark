@@ -1,0 +1,123 @@
+{
+  "config": {
+    "api": "openai",
+    "url": "https://test.example.com",
+    "model": "test-model",
+    "parallel": 8,
+    "number": 50
+  },
+  "test_time": "2026-04-12 17:05:50",
+  "total_tests": 5,
+  "results": [
+    {
+      "test_index": 1,
+      "start_time": "2026-04-12 17:05:50",
+      "end_time": "2026-04-12 17:07:50",
+      "metrics": [
+        {
+          "concurrency": 10,
+          "rate": "INF",
+          "rps": 0.07,
+          "avg_latency": 45.0,
+          "p99_latency": 150.0,
+          "avg_ttft": 1.4,
+          "p99_ttft": 2.5,
+          "avg_tpot": 0.024,
+          "p99_tpot": 0.029,
+          "gen_toks": 120.0,
+          "success_rate": 100.0
+        }
+      ],
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "test_index": 2,
+      "start_time": "2026-04-12 17:35:50",
+      "end_time": "2026-04-12 17:37:50",
+      "metrics": [
+        {
+          "concurrency": 10,
+          "rate": "INF",
+          "rps": 0.08,
+          "avg_latency": 47.0,
+          "p99_latency": 155.0,
+          "avg_ttft": 1.5,
+          "p99_ttft": 2.7,
+          "avg_tpot": 0.024,
+          "p99_tpot": 0.029,
+          "gen_toks": 125.0,
+          "success_rate": 100.0
+        }
+      ],
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "test_index": 3,
+      "start_time": "2026-04-12 18:05:50",
+      "end_time": "2026-04-12 18:07:50",
+      "metrics": [
+        {
+          "concurrency": 10,
+          "rate": "INF",
+          "rps": 0.09000000000000001,
+          "avg_latency": 49.0,
+          "p99_latency": 160.0,
+          "avg_ttft": 1.5999999999999999,
+          "p99_ttft": 2.9,
+          "avg_tpot": 0.024,
+          "p99_tpot": 0.029,
+          "gen_toks": 130.0,
+          "success_rate": 100.0
+        }
+      ],
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "test_index": 4,
+      "start_time": "2026-04-12 18:35:50",
+      "end_time": "2026-04-12 18:37:50",
+      "metrics": [
+        {
+          "concurrency": 10,
+          "rate": "INF",
+          "rps": 0.1,
+          "avg_latency": 51.0,
+          "p99_latency": 165.0,
+          "avg_ttft": 1.7,
+          "p99_ttft": 3.1,
+          "avg_tpot": 0.024,
+          "p99_tpot": 0.029,
+          "gen_toks": 135.0,
+          "success_rate": 100.0
+        }
+      ],
+      "success": true,
+      "error_message": ""
+    },
+    {
+      "test_index": 5,
+      "start_time": "2026-04-12 19:05:50",
+      "end_time": "2026-04-12 19:07:50",
+      "metrics": [
+        {
+          "concurrency": 10,
+          "rate": "INF",
+          "rps": 0.11000000000000001,
+          "avg_latency": 53.0,
+          "p99_latency": 170.0,
+          "avg_ttft": 1.7999999999999998,
+          "p99_ttft": 3.3,
+          "avg_tpot": 0.024,
+          "p99_tpot": 0.029,
+          "gen_toks": 140.0,
+          "success_rate": 100.0
+        }
+      ],
+      "success": true,
+      "error_message": ""
+    }
+  ]
+}
