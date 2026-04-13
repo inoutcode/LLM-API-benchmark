@@ -7,6 +7,7 @@ from flask_login import LoginManager
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 from apscheduler.executors.pool import ThreadPoolExecutor
+from datetime import timezone
 import logging
 import os
 
@@ -126,7 +127,8 @@ def init_scheduler(app):
     scheduler.configure(
         jobstores=jobstores,
         executors=executors,
-        job_defaults=job_defaults
+        job_defaults=job_defaults,
+        timezone=timezone.utc
     )
     
     # 启动调度器
