@@ -111,7 +111,7 @@ def init_scheduler(app):
     # 如果调度器已经在运行，跳过配置
     if scheduler.running:
         return
-    
+
     # 配置调度器
     jobstores = {
         'default': SQLAlchemyJobStore(url=app.config['SQLALCHEMY_DATABASE_URI'])
@@ -123,28 +123,36 @@ def init_scheduler(app):
         'coalesce': True,
         'max_instances': 3
     }
-    
+
     scheduler.configure(
         jobstores=jobstores,
         executors=executors,
         job_defaults=job_defaults,
         timezone=timezone.utc
     )
-    
+
     # 启动调度器
     scheduler.start()
-    app.logger.info('Scheduler started')
-    
+
+    # 清理所有旧任务，避免重复
+    try:
+        for job in scheduler.get_jobs():
+            scheduler.remove_job(job.id)
+        app.logger.info('Cleared old scheduled jobs')
+    except Exception as e:
+        app.logger.warning(f'Failed to clear old jobs: {str(e)}')
+
     # 恢复启用的定时任务
     with app.app_context():
         from .models import Task
         enabled_tasks = Task.query.filter_by(is_enabled=True).all()
-        
+
+        restored_count = 0
         for task in enabled_tasks:
             # 检查任务是否在有效期内
             from datetime import datetime
             now = datetime.now()
-            
+
             if task.start_time and now < task.start_time:
                 continue
             if task.end_time and now > task.end_time:
@@ -152,15 +160,17 @@ def init_scheduler(app):
                 task.is_enabled = False
                 db.session.commit()
                 continue
-            
+
             # 只恢复定时任务（cron 或 interval）
             if task.schedule_type in ['cron', 'interval']:
                 try:
                     from .routes.tasks import schedule_task
                     schedule_task(task)
-                    app.logger.info(f'Restored scheduled task {task.id}: {task.name}')
+                    restored_count += 1
                 except Exception as e:
                     app.logger.error(f'Failed to restore task {task.id}: {str(e)}')
+
+        app.logger.info(f'Scheduler started, restored {restored_count} scheduled tasks')
 
 
 def create_initial_admin(app):

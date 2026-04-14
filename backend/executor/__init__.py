@@ -75,9 +75,9 @@ class TaskExecutor:
                 task.status = 'running'
                 task.last_run_time = datetime.now()
                 db.session.commit()
-                
-                app.logger.info(f"Starting task {task_id}: {task.name}")
-                
+
+                app.logger.info(f"[Task {task_id}] Starting: {task.name}")
+
                 # 根据任务类型执行
                 if task.task_type == 'perf_test':
                     result = self._execute_perf_test(task, app)
@@ -85,28 +85,29 @@ class TaskExecutor:
                     result = self._execute_quality_test(task, app)
                 else:
                     raise ValueError(f"Unknown task type: {task.task_type}")
-                
+
                 # 更新任务状态
                 task.status = 'success'
                 db.session.commit()
-                app.logger.info(f"Task {task_id} completed successfully")
-                
+                app.logger.info(f"[Task {task_id}] Completed successfully")
+
                 # 更新下次执行时间
                 self._update_next_run_time(task)
-                
+
             except Exception as e:
-                app.logger.error(f"Task {task_id} failed: {str(e)}", exc_info=True)
+                app.logger.error(f"[Task {task_id}] Failed: {str(e)}")
                 task.status = 'failed'
                 db.session.commit()
-                
+
                 # 即使失败也要更新下次执行时间
                 self._update_next_run_time(task)
     
     def _execute_perf_test(self, task, app):
         """执行服务压力测试"""
         config = json.loads(task.config)
-        
-        app.logger.info(f"Executing perf test with config: {config}")
+
+        # 简化日志，只记录关键信息
+        app.logger.info(f"[Task {task.id}] Perf test - model: {config.get('model')}, parallel: {config.get('parallel')}")
         
         # 生成唯一的输出目录名（使用任务ID和时间戳）
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -152,9 +153,7 @@ class TaskExecutor:
             f"--outputs-dir {unique_output_dir}",
             '--stream'
         ])
-        
-        app.logger.info(f"Command: {cmd_str}")
-        
+
         # 检查是否使用模拟器（用于测试）
         use_mock = app.config.get('USE_MOCK_EVALSCOPE', False)
         if use_mock:
@@ -194,25 +193,20 @@ class TaskExecutor:
         # 等待进程结束
         process.wait()
         output = ''.join(output_lines)
-        
-        app.logger.info(f"Command output length: {len(output)}")
-        app.logger.info(f"Output saved to: {filepath}")
-        
+
         # 清理
         with self.lock:
             if task.id in self.running_tasks:
                 del self.running_tasks[task.id]
-        
+
         # 检查进程返回码
         if process.returncode != 0:
             app.logger.warning(f"Process terminated with return code: {process.returncode}")
             raise RuntimeError(f"Process terminated unexpectedly (return code: {process.returncode})")
-        
+
         # 解析结果
         metrics = self._parse_perf_output(output)
-        
-        app.logger.info(f"Parsed metrics: {metrics}")
-        
+
         # 必须解析到性能指标才算成功
         if not metrics:
             app.logger.error("Failed to parse performance metrics from output")
@@ -292,9 +286,7 @@ class TaskExecutor:
             f"--url {config['url']}",
             # f"--output {report_path}"
         ])
-        
-        app.logger.info(f"Command: {cmd_str}")
-        
+
         # 执行命令（使用行缓冲实现实时读取）
         process = subprocess.Popen(
             cmd,
@@ -322,28 +314,23 @@ class TaskExecutor:
         # 等待进程结束
         process.wait()
         output = ''.join(output_lines)
-        
-        app.logger.info(f"Command output length: {len(output)}")
-        app.logger.info(f"Output saved to: {filepath}")
-        
+
         # 清理
         with self.lock:
             if task.id in self.running_tasks:
                 del self.running_tasks[task.id]
-        
+
         # 检查进程返回码
         if process.returncode != 0:
             app.logger.warning(f"Process terminated with return code: {process.returncode}")
             raise RuntimeError(f"Process terminated unexpectedly (return code: {process.returncode})")
-        
+
         # 从报告文件中解析结果
         risk_summary = {}
         if os.path.exists(report_path):
-            app.logger.info(f"Reading report from: {report_path}")
             with open(report_path, 'r', encoding='utf-8') as f:
                 report_content = f.read()
             risk_summary = self._parse_quality_report(report_content)
-            app.logger.info(f"Parsed risk summary from report: {risk_summary}")
         else:
             app.logger.warning(f"Report file not found: {report_path}")
             # 尝试从命令行输出解析（兼容旧逻辑）

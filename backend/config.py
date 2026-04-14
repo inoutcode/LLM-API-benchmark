@@ -60,7 +60,7 @@ class Config:
 class DevelopmentConfig(Config):
     """开发环境配置"""
     DEBUG = True
-    SQLALCHEMY_ECHO = True
+    SQLALCHEMY_ECHO = False  # 关闭 SQL 日志，避免日志过多
 
 
 class ProductionConfig(Config):
