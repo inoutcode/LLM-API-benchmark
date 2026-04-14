@@ -276,8 +276,12 @@ def schedule_task(task):
         task.next_run_time = job.next_run_time.replace(tzinfo=None) if job.next_run_time.tzinfo else job.next_run_time
         db.session.commit()
     elif task.schedule_type == 'interval' and task.interval_seconds:
-        # 间隔调度 - 立即执行第一次
-        from datetime import datetime
+        # 间隔调度 - 不立即执行，按照正常间隔执行
+        from datetime import datetime, timedelta
+        
+        # 设置下次执行时间为当前时间 + 间隔秒数，避免立即执行
+        next_run = datetime.now() + timedelta(seconds=task.interval_seconds)
+        
         job = scheduler.add_job(
             run_scheduled_task,
             'interval',
@@ -285,7 +289,7 @@ def schedule_task(task):
             args=[task.id],
             seconds=task.interval_seconds,
             replace_existing=True,
-            next_run_time=datetime.now()  # 立即执行第一次
+            next_run_time=next_run
         )
         # 更新下次执行时间 - 直接存储本地时间
         task.next_run_time = job.next_run_time.replace(tzinfo=None) if job.next_run_time.tzinfo else job.next_run_time
@@ -295,11 +299,26 @@ def schedule_task(task):
 def run_scheduled_task(task_id):
     """执行调度任务（独立函数，可被序列化）"""
     from .. import create_app
-    
+    from datetime import datetime
+
     app = create_app()
     with app.app_context():
         task = Task.query.get(task_id)
         if task and task.is_enabled:
+            # 检查任务是否已经在运行中，避免重复执行
+            if task.status == 'running':
+                app.logger.warning(f"Task {task_id} is already running, skipping execution")
+                return
+
+            # 检查任务是否在执行时间范围内
+            now = datetime.now()
+            if task.start_time and now < task.start_time:
+                app.logger.info(f"Task {task_id} not yet started, skipping execution")
+                return
+            if task.end_time and now > task.end_time:
+                app.logger.info(f"Task {task_id} has ended, skipping execution")
+                return
+
             executor.execute_async(task)
 
 

@@ -134,6 +134,33 @@ def init_scheduler(app):
     # 启动调度器
     scheduler.start()
     app.logger.info('Scheduler started')
+    
+    # 恢复启用的定时任务
+    with app.app_context():
+        from .models import Task
+        enabled_tasks = Task.query.filter_by(is_enabled=True).all()
+        
+        for task in enabled_tasks:
+            # 检查任务是否在有效期内
+            from datetime import datetime
+            now = datetime.now()
+            
+            if task.start_time and now < task.start_time:
+                continue
+            if task.end_time and now > task.end_time:
+                # 任务已过期，自动禁用
+                task.is_enabled = False
+                db.session.commit()
+                continue
+            
+            # 只恢复定时任务（cron 或 interval）
+            if task.schedule_type in ['cron', 'interval']:
+                try:
+                    from .routes.tasks import schedule_task
+                    schedule_task(task)
+                    app.logger.info(f'Restored scheduled task {task.id}: {task.name}')
+                except Exception as e:
+                    app.logger.error(f'Failed to restore task {task.id}: {str(e)}')
 
 
 def create_initial_admin(app):
