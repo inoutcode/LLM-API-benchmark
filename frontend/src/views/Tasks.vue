@@ -127,25 +127,25 @@
           </el-form-item>
           
           <el-form-item label="请求数">
-            <el-input-number v-model="taskForm.config.number" :min="1" :max="1000" />
+            <el-input-number v-model="taskForm.config.number" :min="1" :max="100000" />
           </el-form-item>
           
           <el-divider>高级配置</el-divider>
           
           <el-form-item label="最小提示长度">
-            <el-input-number v-model="taskForm.config.min_prompt_length" :min="1" :max="1000" />
+            <el-input-number v-model="taskForm.config.min_prompt_length" :min="1" :max="1000000" />
           </el-form-item>
           
           <el-form-item label="最大提示长度">
-            <el-input-number v-model="taskForm.config.max_prompt_length" :min="1" :max="10000" />
+            <el-input-number v-model="taskForm.config.max_prompt_length" :min="1" :max="1000000" />
           </el-form-item>
           
           <el-form-item label="最小生成Token数">
-            <el-input-number v-model="taskForm.config.min_tokens" :min="1" :max="10000" />
+            <el-input-number v-model="taskForm.config.min_tokens" :min="1" :max="1000000" />
           </el-form-item>
           
           <el-form-item label="最大生成Token数">
-            <el-input-number v-model="taskForm.config.max_tokens" :min="1" :max="10000" />
+            <el-input-number v-model="taskForm.config.max_tokens" :min="1" :max="1000000" />
           </el-form-item>
           
           <el-form-item label="连接超时(秒)">
