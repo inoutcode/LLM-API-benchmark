@@ -153,6 +153,8 @@ def get_perf_result_content(result_id):
 @login_required
 def get_perf_chart_data():
     """获取服务压力测试图表数据"""
+    import json
+    
     task_id = request.args.get('task_id', type=int)
     start_time = request.args.get('start_time')
     end_time = request.args.get('end_time')
@@ -179,20 +181,70 @@ def get_perf_chart_data():
     
     results = query.order_by(PerfTestResult.execution_time.asc()).all()
     
+    # 按"模型-任务名"分组数据
+    grouped_data = {}
+    all_timestamps = set()
+    
+    for r in results:
+        # 获取模型名称和任务名称
+        model_name = r.task.config and json.loads(r.task.config).get('model', 'unknown') if r.task else 'unknown'
+        task_name = r.task.name if r.task else 'unknown'
+        
+        # 创建分组键
+        group_key = f"{model_name} - {task_name}"
+        
+        if group_key not in grouped_data:
+            grouped_data[group_key] = {
+                'model': model_name,
+                'task_name': task_name,
+                'data': []
+            }
+        
+        timestamp = r.execution_time.strftime('%Y-%m-%d %H:%M')
+        all_timestamps.add(timestamp)
+        
+        grouped_data[group_key]['data'].append({
+            'timestamp': timestamp,
+            'execution_time': r.execution_time,
+            'avg_latency': r.avg_latency,
+            'p99_latency': r.p99_latency,
+            'avg_ttft': r.avg_ttft,
+            'p99_ttft': r.p99_ttft,
+            'avg_tpot': r.avg_tpot,
+            'p99_tpot': r.p99_tpot,
+            'rps': r.rps,
+            'gen_toks': r.gen_toks,
+            'success_rate': r.success_rate
+        })
+    
+    # 按时间排序所有时间戳
+    sorted_timestamps = sorted(list(all_timestamps))
+    
+    # 为每个分组构建完整的时间序列数据
+    datasets_by_group = {}
+    for group_key, group_info in grouped_data.items():
+        # 创建时间到数据的映射
+        data_map = {item['timestamp']: item for item in group_info['data']}
+        
+        # 为每个时间戳填充数据（如果该时间戳没有数据则为 None）
+        datasets_by_group[group_key] = {
+            'model': group_info['model'],
+            'task_name': group_info['task_name'],
+            'avg_latency': [data_map.get(ts, {}).get('avg_latency') for ts in sorted_timestamps],
+            'p99_latency': [data_map.get(ts, {}).get('p99_latency') for ts in sorted_timestamps],
+            'avg_ttft': [data_map.get(ts, {}).get('avg_ttft') for ts in sorted_timestamps],
+            'p99_ttft': [data_map.get(ts, {}).get('p99_ttft') for ts in sorted_timestamps],
+            'avg_tpot': [data_map.get(ts, {}).get('avg_tpot') for ts in sorted_timestamps],
+            'p99_tpot': [data_map.get(ts, {}).get('p99_tpot') for ts in sorted_timestamps],
+            'rps': [data_map.get(ts, {}).get('rps') for ts in sorted_timestamps],
+            'gen_toks': [data_map.get(ts, {}).get('gen_toks') for ts in sorted_timestamps],
+            'success_rate': [data_map.get(ts, {}).get('success_rate') for ts in sorted_timestamps]
+        }
+    
     # 构建图表数据
     chart_data = {
-        'labels': [r.execution_time.strftime('%Y-%m-%d %H:%M') for r in results],
-        'datasets': {
-            'avg_latency': [r.avg_latency for r in results],
-            'p99_latency': [r.p99_latency for r in results],
-            'avg_ttft': [r.avg_ttft for r in results],
-            'p99_ttft': [r.p99_ttft for r in results],
-            'avg_tpot': [r.avg_tpot for r in results],
-            'p99_tpot': [r.p99_tpot for r in results],
-            'rps': [r.rps for r in results],
-            'gen_toks': [r.gen_toks for r in results],
-            'success_rate': [r.success_rate for r in results]
-        }
+        'labels': sorted_timestamps,
+        'datasets': datasets_by_group
     }
     
     return jsonify({'chart_data': chart_data}), 200

@@ -136,6 +136,12 @@
           </template>
         </el-table-column>
         
+        <el-table-column prop="concurrency" label="并发数" width="90">
+          <template #default="{ row }">
+            {{ row.concurrency || '-' }}
+          </template>
+        </el-table-column>
+        
         <el-table-column prop="avg_latency" label="平均延迟" min-width="100">
           <template #default="{ row }">
             {{ row.avg_latency?.toFixed(2) }}s
@@ -301,16 +307,26 @@ const renderCharts = () => {
   // 销毁旧图表
   charts.forEach(chart => chart.dispose())
   charts = []
-  
+
   if (chartData.value.labels.length === 0) return
-  
+
+  // 颜色配置
+  const colors = [
+    '#5470c6', '#91cc75', '#fac858', '#ee6666', '#73c0de',
+    '#3ba272', '#fc8452', '#9a60b4', '#ea7ccc', '#48b8d0'
+  ]
+
+  // 获取所有分组名称
+  const groupNames = Object.keys(chartData.value.datasets)
+
   const baseOption = {
     tooltip: {
       trigger: 'axis'
     },
     legend: {
-      data: [],
-      top: 10
+      data: groupNames,
+      top: 10,
+      type: 'scroll'
     },
     grid: {
       left: '3%',
@@ -324,17 +340,34 @@ const renderCharts = () => {
       boundaryGap: false,
       data: chartData.value.labels,
       axisLabel: {
-        rotate: 45
+        rotate: 45,
+        interval: Math.floor(chartData.value.labels.length / 10) || 0
       }
     },
     yAxis: {
       type: 'value'
     }
   }
-  
+
   // 主图表 - 综合展示所有关键指标
   if (mainChart.value) {
     const chart = echarts.init(mainChart.value)
+
+    // 为每个分组创建系列数据
+    const series = []
+    groupNames.forEach((groupName, index) => {
+      const groupData = chartData.value.datasets[groupName]
+      const color = colors[index % colors.length]
+
+      series.push({
+        name: groupName,
+        type: 'line',
+        data: groupData.avg_latency,
+        smooth: true,
+        itemStyle: { color }
+      })
+    })
+
     chart.setOption({
       title: {
         text: filters.task_id ? '任务历史性能趋势' : '所有任务性能趋势',
@@ -352,8 +385,9 @@ const renderCharts = () => {
         }
       },
       legend: {
-        data: ['平均延迟(s)', 'RPS', '生成速度', '成功率(%)'],
-        top: 35
+        data: groupNames,
+        top: 35,
+        type: 'scroll'
       },
       grid: {
         left: '3%',
@@ -371,130 +405,139 @@ const renderCharts = () => {
           interval: Math.floor(chartData.value.labels.length / 10) || 0
         }
       },
-      yAxis: [
-        {
-          type: 'value',
-          name: '延迟/RPS/速度',
-          position: 'left'
-        },
-        {
-          type: 'value',
-          name: '成功率(%)',
-          position: 'right',
-          min: 0,
-          max: 100
-        }
-      ],
-      series: [
-        {
-          name: '平均延迟(s)',
-          type: 'line',
-          data: chartData.value.datasets.avg_latency,
-          smooth: true,
-          itemStyle: { color: '#5470c6' }
-        },
-        {
-          name: 'RPS',
-          type: 'line',
-          data: chartData.value.datasets.rps,
-          smooth: true,
-          itemStyle: { color: '#91cc75' }
-        },
-        {
-          name: '生成速度',
-          type: 'line',
-          data: chartData.value.datasets.gen_toks,
-          smooth: true,
-          itemStyle: { color: '#fac858' }
-        },
-        {
-          name: '成功率(%)',
-          type: 'line',
-          yAxisIndex: 1,
-          data: chartData.value.datasets.success_rate,
-          smooth: true,
-          itemStyle: { color: '#ee6666' },
-          lineStyle: { type: 'dashed' }
-        }
-      ]
+      yAxis: {
+        type: 'value',
+        name: '平均延迟(s)'
+      },
+      series
     })
     charts.push(chart)
   }
-  
+
   // 延迟图表
   if (latencyChart.value) {
     const chart = echarts.init(latencyChart.value)
+
+    const series = []
+    const legendData = []
+    groupNames.forEach((groupName, index) => {
+      const groupData = chartData.value.datasets[groupName]
+      const color = colors[index % colors.length]
+
+      series.push({
+        name: `${groupName} - 平均`,
+        type: 'line',
+        data: groupData.avg_latency,
+        smooth: true,
+        itemStyle: { color }
+      })
+      series.push({
+        name: `${groupName} - P99`,
+        type: 'line',
+        data: groupData.p99_latency,
+        smooth: true,
+        lineStyle: { type: 'dashed' },
+        itemStyle: { color }
+      })
+      legendData.push(`${groupName} - 平均`, `${groupName} - P99`)
+    })
+
     chart.setOption({
       ...baseOption,
-      legend: { data: ['平均延迟', 'P99延迟'] },
-      series: [
-        {
-          name: '平均延迟',
-          type: 'line',
-          data: chartData.value.datasets.avg_latency
-        },
-        {
-          name: 'P99延迟',
-          type: 'line',
-          data: chartData.value.datasets.p99_latency
-        }
-      ]
+      legend: { data: legendData, type: 'scroll' },
+      yAxis: { type: 'value', name: '延迟(s)' },
+      series
     })
     charts.push(chart)
   }
-  
+
   // TTFT 图表
   if (ttftChart.value) {
     const chart = echarts.init(ttftChart.value)
+
+    const series = []
+    const legendData = []
+    groupNames.forEach((groupName, index) => {
+      const groupData = chartData.value.datasets[groupName]
+      const color = colors[index % colors.length]
+
+      series.push({
+        name: `${groupName} - 平均`,
+        type: 'line',
+        data: groupData.avg_ttft,
+        smooth: true,
+        itemStyle: { color }
+      })
+      series.push({
+        name: `${groupName} - P99`,
+        type: 'line',
+        data: groupData.p99_ttft,
+        smooth: true,
+        lineStyle: { type: 'dashed' },
+        itemStyle: { color }
+      })
+      legendData.push(`${groupName} - 平均`, `${groupName} - P99`)
+    })
+
     chart.setOption({
       ...baseOption,
-      legend: { data: ['平均TTFT', 'P99 TTFT'] },
-      series: [
-        {
-          name: '平均TTFT',
-          type: 'line',
-          data: chartData.value.datasets.avg_ttft
-        },
-        {
-          name: 'P99 TTFT',
-          type: 'line',
-          data: chartData.value.datasets.p99_ttft
-        }
-      ]
+      legend: { data: legendData, type: 'scroll' },
+      yAxis: { type: 'value', name: 'TTFT(s)' },
+      series
     })
     charts.push(chart)
   }
-  
+
   // RPS 图表
   if (rpsChart.value) {
     const chart = echarts.init(rpsChart.value)
+
+    const series = []
+    groupNames.forEach((groupName, index) => {
+      const groupData = chartData.value.datasets[groupName]
+      const color = colors[index % colors.length]
+
+      series.push({
+        name: groupName,
+        type: 'line',
+        data: groupData.rps,
+        smooth: true,
+        itemStyle: { color }
+      })
+    })
+
     chart.setOption({
       ...baseOption,
-      legend: { data: ['RPS'] },
-      series: [
-        {
-          name: 'RPS',
-          type: 'line',
-          data: chartData.value.datasets.rps
-        }
-      ]
+      legend: { data: groupNames, type: 'scroll' },
+      yAxis: { type: 'value', name: 'RPS' },
+      series
     })
     charts.push(chart)
   }
-  
+
   // 生成速度图表
   if (genToksChart.value) {
     const chart = echarts.init(genToksChart.value)
+
+    const series = []
+    groupNames.forEach((groupName, index) => {
+      const groupData = chartData.value.datasets[groupName]
+      const color = colors[index % colors.length]
+
+      series.push({
+        name: groupName,
+        type: 'line',
+        data: groupData.gen_toks,
+        smooth: true,
+        itemStyle: { color }
+      })
+    })
+
     chart.setOption({
       ...baseOption,
-      legend: { data: ['生成速度'] },
-      series: [
-        {
-          name: '生成速度',
-          type: 'line',
-          data: chartData.value.datasets.gen_toks
-        }
-      ]
+      legend: { data: groupNames, type: 'scroll' },
+      yAxis: { type: 'value', name: '生成速度(tokens/s)' },
+      series
     })
     charts.push(chart)
   }

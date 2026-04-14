@@ -123,7 +123,7 @@
           </el-form-item>
           
           <el-form-item label="并发数">
-            <el-input-number v-model="taskForm.config.parallel" :min="1" :max="100" />
+            <el-input-number v-model="taskForm.config.parallel" :min="1" :max="1000" />
           </el-form-item>
           
           <el-form-item label="请求数">
