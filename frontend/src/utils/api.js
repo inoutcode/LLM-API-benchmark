@@ -81,12 +81,16 @@ export const resultAPI = {
   getPerfResultFile: (id) => api.get(`/results/perf/${id}/file`),
   getPerfChartData: (params) => api.get('/results/perf/chart-data', { params }),
   getPerfModels: () => api.get('/results/perf/models'),
-  
+
   getQualityResults: (params) => api.get('/results/quality', { params }),
   getQualityResult: (id) => api.get(`/results/quality/${id}`),
   getQualityResultFile: (id) => api.get(`/results/quality/${id}/file`),
   getQualityResultRaw: (id) => api.get(`/results/quality/${id}/raw`),
-  
+
+  getAvailabilityResults: (params) => api.get('/results/availability', { params }),
+  getAvailabilityModels: () => api.get('/results/availability/models'),
+  getAvailabilityChartData: (params) => api.get('/results/availability/chart-data', { params }),
+
   getStatistics: () => api.get('/results/statistics')
 }
 

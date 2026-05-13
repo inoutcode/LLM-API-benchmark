@@ -4,8 +4,9 @@
 from flask import Blueprint, request, jsonify, send_file
 from flask_login import login_required
 from datetime import datetime, timezone
-from ..models import db, Task, PerfTestResult, QualityTestResult
+from ..models import db, Task, PerfTestResult, QualityTestResult, AvailabilityTestResult
 import os
+import json
 
 
 results_bp = Blueprint('results', __name__)
@@ -329,14 +330,137 @@ def get_statistics():
     total_tasks = Task.query.count()
     enabled_tasks = Task.query.filter_by(is_enabled=True).count()
     running_tasks = Task.query.filter_by(status='running').count()
-    
+
     total_perf_results = PerfTestResult.query.count()
     total_quality_results = QualityTestResult.query.count()
-    
+    total_availability_results = AvailabilityTestResult.query.count()
+
     return jsonify({
         'total_tasks': total_tasks,
         'enabled_tasks': enabled_tasks,
         'running_tasks': running_tasks,
         'total_perf_results': total_perf_results,
-        'total_quality_results': total_quality_results
+        'total_quality_results': total_quality_results,
+        'total_availability_results': total_availability_results
     }), 200
+
+
+@results_bp.route('/availability', methods=['GET'])
+@login_required
+def get_availability_results():
+    """获取可用性测试结果"""
+    model = request.args.get('model')
+    start_time = request.args.get('start_time')
+    end_time = request.args.get('end_time')
+    limit = request.args.get('limit', 100, type=int)
+
+    query = AvailabilityTestResult.query
+
+    if model:
+        query = query.filter_by(model_name=model)
+
+    if start_time:
+        parsed_start = parse_time_param(start_time)
+        if parsed_start:
+            query = query.filter(AvailabilityTestResult.execution_time >= parsed_start)
+
+    if end_time:
+        parsed_end = parse_time_param(end_time)
+        if parsed_end:
+            query = query.filter(AvailabilityTestResult.execution_time <= parsed_end)
+
+    results = query.order_by(AvailabilityTestResult.execution_time.desc()).limit(limit).all()
+
+    return jsonify({
+        'results': [result.to_dict() for result in results]
+    }), 200
+
+
+@results_bp.route('/availability/models', methods=['GET'])
+@login_required
+def get_availability_models():
+    """获取所有可用性测试的模型名称列表"""
+    models = db.session.query(AvailabilityTestResult.model_name).distinct().all()
+    models = [m[0] for m in models if m[0]]
+
+    return jsonify({
+        'models': sorted(models)
+    }), 200
+
+
+@results_bp.route('/availability/chart-data', methods=['GET'])
+@login_required
+def get_availability_chart_data():
+    """获取可用性测试图表数据"""
+    model = request.args.get('model')
+    start_time = request.args.get('start_time')
+    end_time = request.args.get('end_time')
+
+    query = AvailabilityTestResult.query.filter_by(status='success')
+
+    if model:
+        query = query.filter_by(model_name=model)
+
+    if start_time:
+        parsed_start = parse_time_param(start_time)
+        if parsed_start:
+            query = query.filter(AvailabilityTestResult.execution_time >= parsed_start)
+
+    if end_time:
+        parsed_end = parse_time_param(end_time)
+        if parsed_end:
+            query = query.filter(AvailabilityTestResult.execution_time <= parsed_end)
+
+    results = query.order_by(AvailabilityTestResult.execution_time.asc()).all()
+
+    # 按"渠道名称"分组数据
+    grouped_data = {}
+    all_timestamps = set()
+
+    for r in results:
+        channel_key = r.channel_name
+
+        if channel_key not in grouped_data:
+            grouped_data[channel_key] = {
+                'data': []
+            }
+
+        timestamp = r.execution_time.strftime('%Y-%m-%d %H:%M')
+        all_timestamps.add(timestamp)
+
+        grouped_data[channel_key]['data'].append({
+            'timestamp': timestamp,
+            'execution_time': r.execution_time,
+            'avg_latency': r.avg_latency,
+            'p99_latency': r.p99_latency,
+            'avg_ttft': r.avg_ttft,
+            'p99_ttft': r.p99_ttft,
+            'rps': r.rps,
+            'gen_toks': r.gen_toks,
+            'success_rate': r.success_rate
+        })
+
+    # 按时间排序所有时间戳
+    sorted_timestamps = sorted(list(all_timestamps))
+
+    # 为每个分组构建完整的时间序列数据
+    datasets_by_channel = {}
+    for channel_key, channel_info in grouped_data.items():
+        data_map = {item['timestamp']: item for item in channel_info['data']}
+
+        datasets_by_channel[channel_key] = {
+            'avg_latency': [data_map.get(ts, {}).get('avg_latency') for ts in sorted_timestamps],
+            'p99_latency': [data_map.get(ts, {}).get('p99_latency') for ts in sorted_timestamps],
+            'avg_ttft': [data_map.get(ts, {}).get('avg_ttft') for ts in sorted_timestamps],
+            'p99_ttft': [data_map.get(ts, {}).get('p99_ttft') for ts in sorted_timestamps],
+            'rps': [data_map.get(ts, {}).get('rps') for ts in sorted_timestamps],
+            'gen_toks': [data_map.get(ts, {}).get('gen_toks') for ts in sorted_timestamps],
+            'success_rate': [data_map.get(ts, {}).get('success_rate') for ts in sorted_timestamps]
+        }
+
+    chart_data = {
+        'labels': sorted_timestamps,
+        'datasets': datasets_by_channel
+    }
+
+    return jsonify({'chart_data': chart_data}), 200

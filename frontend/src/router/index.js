@@ -5,6 +5,7 @@ import Dashboard from '@/views/Dashboard.vue'
 import Tasks from '@/views/Tasks.vue'
 import PerfResults from '@/views/PerfResults.vue'
 import QualityResults from '@/views/QualityResults.vue'
+import AvailabilityMonitor from '@/views/AvailabilityMonitor.vue'
 
 const routes = [
   {
@@ -37,6 +38,11 @@ const routes = [
         path: 'quality-results',
         name: 'QualityResults',
         component: QualityResults
+      },
+      {
+        path: 'availability-monitor',
+        name: 'AvailabilityMonitor',
+        component: AvailabilityMonitor
       }
     ]
   }

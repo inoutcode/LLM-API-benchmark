@@ -13,12 +13,18 @@
       
       <el-table :data="tasks" style="width: 100%">
         <el-table-column prop="name" label="任务名称" min-width="200" />
-        
+
         <el-table-column prop="task_type" label="任务类型" min-width="120">
           <template #default="{ row }">
-            <el-tag :type="row.task_type === 'perf_test' ? 'success' : 'warning'">
-              {{ row.task_type === 'perf_test' ? '压力测试' : '质量测试' }}
+            <el-tag :type="getTaskTypeColor(row.task_type)">
+              {{ getTaskTypeLabel(row.task_type) }}
             </el-tag>
+          </template>
+        </el-table-column>
+
+        <el-table-column prop="model_name" label="模型名称" min-width="150">
+          <template #default="{ row }">
+            {{ getModelName(row) }}
           </template>
         </el-table-column>
         
@@ -105,6 +111,7 @@
           <el-radio-group v-model="taskForm.task_type" :disabled="isEdit">
             <el-radio label="perf_test">服务压力测试</el-radio>
             <el-radio label="quality_test">模型质量测试</el-radio>
+            <el-radio label="availability_test">服务可用性</el-radio>
           </el-radio-group>
         </el-form-item>
         
@@ -113,9 +120,9 @@
           <el-form-item label="API URL" prop="config.url">
             <el-input v-model="taskForm.config.url" placeholder="https://api.example.com" />
           </el-form-item>
-          
+
           <el-form-item label="API Key" prop="config.api_key">
-            <el-input v-model="taskForm.config.api_key" type="password" placeholder="sk-xxxx" />
+            <el-input v-model="taskForm.config.api_key" placeholder="sk-xxxx" show-password />
           </el-form-item>
           
           <el-form-item label="模型名称" prop="config.model">
@@ -162,14 +169,79 @@
           <el-form-item label="API URL" prop="config.url">
             <el-input v-model="taskForm.config.url" placeholder="https://relay.example.com/v1" />
           </el-form-item>
-          
+
           <el-form-item label="API Key" prop="config.api_key">
             <el-input v-model="taskForm.config.api_key" type="password" placeholder="sk-xxxx" />
           </el-form-item>
-          
+
           <el-form-item label="Audit 路径">
             <el-input v-model="taskForm.config.audit_path" placeholder="audit.py 所在目录" />
           </el-form-item>
+        </template>
+
+        <!-- 可用性测试配置 -->
+        <template v-if="taskForm.task_type === 'availability_test'">
+          <el-form-item label="API URL" prop="config.url">
+            <el-input v-model="taskForm.config.url" placeholder="https://agent.tokensea.ai/v1/chat/completions" />
+          </el-form-item>
+
+          <el-form-item label="模型名称" prop="config.model">
+            <el-select
+              v-model="taskForm.config.model"
+              filterable
+              allow-create
+              default-first-option
+              placeholder="选择或输入模型名称"
+            >
+              <el-option
+                v-for="item in modelOptions"
+                :key="item"
+                :label="item"
+                :value="item"
+              />
+            </el-select>
+          </el-form-item>
+
+          <el-form-item label="并发数">
+            <el-input-number v-model="taskForm.config.parallel" :min="1" :max="100" />
+          </el-form-item>
+
+          <el-form-item label="请求数">
+            <el-input-number v-model="taskForm.config.number" :min="1" :max="1000" />
+          </el-form-item>
+
+          <el-divider>渠道配置</el-divider>
+
+          <div v-for="(channel, index) in taskForm.config.channels" :key="index" class="channel-item">
+            <el-card shadow="hover">
+              <el-row :gutter="20">
+                <el-col :span="10">
+                  <el-form-item :label="`渠道${index + 1}名称`">
+                    <el-input v-model="channel.name" placeholder="如：官方、代理1" />
+                  </el-form-item>
+                </el-col>
+                <el-col :span="12">
+                  <el-form-item label="API Key">
+                    <el-input v-model="channel.api_key" placeholder="sk-xxxx" show-password />
+                  </el-form-item>
+                </el-col>
+                <el-col :span="2">
+                  <el-button
+                    type="danger"
+                    :icon="Delete"
+                    circle
+                    @click="removeChannel(index)"
+                    :disabled="taskForm.config.channels.length <= 1"
+                  />
+                </el-col>
+              </el-row>
+            </el-card>
+          </div>
+
+          <el-button type="primary" plain @click="addChannel" style="width: 100%; margin-top: 10px">
+            <el-icon><Plus /></el-icon>
+            添加渠道
+          </el-button>
         </template>
         
         <el-divider>调度设置</el-divider>
@@ -245,6 +317,7 @@
 <script setup>
 import { ref, reactive, onMounted, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { Plus, Delete } from '@element-plus/icons-vue'
 import { taskAPI } from '@/utils/api'
 import dayjs from 'dayjs'
 import utc from 'dayjs/plugin/utc'
@@ -260,6 +333,23 @@ const submitting = ref(false)
 const taskFormRef = ref(null)
 const editingTaskId = ref(null)
 
+// 模型选项列表
+const modelOptions = [
+  'claude-opus-4.7',
+  'claude-opus-4.6',
+  'claude-sonnet-4.6',
+  'gpt-5.4',
+  'gpt-5.5',
+  'glm-5.1',
+  'glm-5',
+  'kimi-k2.5',
+  'kimi-k2.6',
+  'minimax-m2.5',
+  'minimax-m2.7',
+  'deepseek-v4-flash',
+  'deepseek-v4-pro'
+]
+
 // 实时日志相关
 const logDialogVisible = ref(false)
 const logContent = ref('')
@@ -272,20 +362,23 @@ const taskForm = reactive({
   name: '',
   task_type: 'perf_test',
   config: {
-    url: '',
+    url: 'https://agent.tokensea.ai/v1/chat/completions',
     api_key: '',
     model: '',
-    parallel: 8,
-    number: 50,
+    parallel: 3,
+    number: 3,
     min_prompt_length: 10,
     max_prompt_length: 20,
     min_tokens: 128,
     max_tokens: 128,
-    connect_timeout: 60,
-    read_timeout: 120,
-    audit_path: ''
+    connect_timeout: 20,
+    read_timeout: 600,
+    audit_path: '',
+    channels: [
+      { name: '渠道1', api_key: '' }
+    ]
   },
-  schedule_type: 'manual',
+  schedule_type: 'interval',
   cron_expression: '',
   interval_seconds: 1800,
   start_time: null,
@@ -318,26 +411,29 @@ const showCreateDialog = () => {
 const handleEdit = (row) => {
   isEdit.value = true
   editingTaskId.value = row.id
-  
+
   const parsedConfig = JSON.parse(row.config)
-  
+
   Object.assign(taskForm, {
     name: row.name,
     task_type: row.task_type,
     config: {
       // 默认值
-      url: '',
+      url: 'https://agent.tokensea.ai/v1/chat/completions',
       api_key: '',
       model: '',
-      parallel: 8,
-      number: 50,
+      parallel: 3,
+      number: 3,
       min_prompt_length: 10,
       max_prompt_length: 20,
       min_tokens: 128,
       max_tokens: 128,
-      connect_timeout: 60,
-      read_timeout: 120,
+      connect_timeout: 20,
+      read_timeout: 600,
       audit_path: '',
+      channels: [
+        { name: '渠道1', api_key: '' }
+      ],
       // 覆盖为实际值
       ...parsedConfig
     },
@@ -348,8 +444,21 @@ const handleEdit = (row) => {
     end_time: row.end_time ? new Date(row.end_time) : null,
     is_enabled: row.is_enabled
   })
-  
+
   dialogVisible.value = true
+}
+
+const addChannel = () => {
+  taskForm.config.channels.push({
+    name: `渠道${taskForm.config.channels.length + 1}`,
+    api_key: ''
+  })
+}
+
+const removeChannel = (index) => {
+  if (taskForm.config.channels.length > 1) {
+    taskForm.config.channels.splice(index, 1)
+  }
 }
 
 const handleSubmit = async () => {
@@ -502,20 +611,23 @@ const resetForm = () => {
     name: '',
     task_type: 'perf_test',
     config: {
-      url: '',
+      url: 'https://agent.tokensea.ai/v1/chat/completions',
       api_key: '',
       model: '',
-      parallel: 8,
-      number: 50,
+      parallel: 3,
+      number: 3,
       min_prompt_length: 10,
       max_prompt_length: 20,
       min_tokens: 128,
       max_tokens: 128,
-      connect_timeout: 60,
-      read_timeout: 120,
-      audit_path: ''
+      connect_timeout: 20,
+      read_timeout: 600,
+      audit_path: '',
+      channels: [
+        { name: '渠道1', api_key: '' }
+      ]
     },
-    schedule_type: 'manual',
+    schedule_type: 'interval',
     cron_expression: '',
     interval_seconds: 1800,
     start_time: null,
@@ -563,6 +675,33 @@ const getStatusType = (status) => {
   return types[status] || 'info'
 }
 
+const getModelName = (row) => {
+  try {
+    const config = JSON.parse(row.config)
+    return config.model || '-'
+  } catch {
+    return '-'
+  }
+}
+
+const getTaskTypeLabel = (type) => {
+  const labels = {
+    perf_test: '压力测试',
+    quality_test: '质量测试',
+    availability_test: '可用性测试'
+  }
+  return labels[type] || type
+}
+
+const getTaskTypeColor = (type) => {
+  const colors = {
+    perf_test: 'success',
+    quality_test: 'warning',
+    availability_test: 'primary'
+  }
+  return colors[type] || 'info'
+}
+
 onMounted(() => {
   loadTasks()
 })
@@ -579,6 +718,10 @@ onMounted(() => {
   font-size: 12px;
   color: #909399;
   margin-top: 5px;
+}
+
+.channel-item {
+  margin-bottom: 15px;
 }
 
 .log-header {

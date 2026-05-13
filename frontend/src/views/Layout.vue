@@ -25,10 +25,15 @@
           <el-icon><TrendCharts /></el-icon>
           <span>压力测试结果</span>
         </el-menu-item>
-        
+
         <el-menu-item index="/quality-results">
           <el-icon><Document /></el-icon>
           <span>质量测试结果</span>
+        </el-menu-item>
+
+        <el-menu-item index="/availability-monitor">
+          <el-icon><Monitor /></el-icon>
+          <span>可用性监控</span>
         </el-menu-item>
       </el-menu>
     </el-aside>
@@ -63,6 +68,7 @@
 import { ref, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { DataBoard, List, TrendCharts, Document, Monitor, User, ArrowDown } from '@element-plus/icons-vue'
 import { authAPI } from '@/utils/api'
 
 const router = useRouter()
@@ -76,7 +82,8 @@ const pageTitle = computed(() => {
     '/': '仪表盘',
     '/tasks': '任务管理',
     '/perf-results': '压力测试结果',
-    '/quality-results': '质量测试结果'
+    '/quality-results': '质量测试结果',
+    '/availability-monitor': '可用性监控'
   }
   return titles[route.path] || '模型质量测试管理后台'
 })
